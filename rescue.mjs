@@ -206,23 +206,23 @@ function askHidden(q) {
 
 // Address input with an env-var override for non-interactive runs.
 async function askAddress(envVal, promptText) {
-  if (envVal) { try { return getAddress(envVal); } catch { line(`${C.red}环境变量地址格式不对,改用手动输入。${C.x}`); } }
-  while (true) { const a = await ask(promptText); try { return getAddress(a); } catch { line(`${C.red}   地址格式不对,请重贴。${C.x}`); } }
+  if (envVal) { try { return getAddress(envVal); } catch { line(`${C.red}The address in the environment variable is invalid. Please enter it manually.${C.x}`); } }
+  while (true) { const a = await ask(promptText); try { return getAddress(a); } catch { line(`${C.red}   That is not a valid address. Please paste it again.${C.x}`); } }
 }
 // Private-key input -> viem account, with PRIVATE_KEY env override.
 async function askAccount(envVal) {
   const norm = (k) => (k.startsWith("0x") ? k : "0x" + k);
-  if (envVal) { const k = norm(envVal); if (/^0x[0-9a-fA-F]{64}$/.test(k)) { try { return privateKeyToAccount(k); } catch {} } line(`${C.red}环境变量 PRIVATE_KEY 无效,改用手动输入。${C.x}`); }
+  if (envVal) { const k = norm(envVal); if (/^0x[0-9a-fA-F]{64}$/.test(k)) { try { return privateKeyToAccount(k); } catch {} } line(`${C.red}PRIVATE_KEY in the environment is invalid. Please enter it manually.${C.x}`); }
   while (true) {
     const k = norm(await askHidden(`   > `));
-    if (!/^0x[0-9a-fA-F]{64}$/.test(k)) { line(`${C.red}   私钥应为 64 位十六进制,请重输。${C.x}`); continue; }
-    try { return privateKeyToAccount(k); } catch { line(`${C.red}   私钥无效,请重输。${C.x}`); }
+    if (!/^0x[0-9a-fA-F]{64}$/.test(k)) { line(`${C.red}   A private key is 64 hexadecimal characters. Please enter it again.${C.x}`); continue; }
+    try { return privateKeyToAccount(k); } catch { line(`${C.red}   That private key is invalid. Please enter it again.${C.x}`); }
   }
 }
 
-async function pause(msg = "\n按 Enter 继续… ") { await ask(C.dim + msg + C.x); }
+async function pause(msg = "\nPress Enter to continue… ") { await ask(C.dim + msg + C.x); }
 function bye(code = 0) { rl.close(); process.exit(code); }
-async function fatal(msg) { line(`\n${C.red}❌ ${msg}${C.x}`); await pause("\n按 Enter 关闭… "); bye(1); }
+async function fatal(msg) { line(`\n${C.red}❌ ${msg}${C.x}`); await pause("\nPress Enter to close… "); bye(1); }
 
 // ── On-chain reads ──────────────────────────────────────────────────
 async function readState(dw) {
@@ -293,12 +293,12 @@ async function redeemWinners(wallet, eoa, winners) {
   const regular = winners.filter((w) => !w.negativeRisk);
   if (negRisk.length) {
     const approved = await pub.readContract({ address: CTF, abi: ERC1155_ABI, functionName: "isApprovedForAll", args: [eoa, getAddress(NEG_RISK_ADAPTER)] });
-    if (!approved) await sendTx(wallet, { address: CTF, abi: ERC1155_ABI, functionName: "setApprovalForAll", args: [getAddress(NEG_RISK_ADAPTER), true] }, "授权 NegRiskAdapter");
+    if (!approved) await sendTx(wallet, { address: CTF, abi: ERC1155_ABI, functionName: "setApprovalForAll", args: [getAddress(NEG_RISK_ADAPTER), true] }, "Approve NegRiskAdapter");
     for (const w of negRisk) {
       const amounts = new Array(Math.max(w.outcomeIndex + 1, 2)).fill(0n);
       amounts[w.outcomeIndex] = w.bal;
-      await sendTx(wallet, { address: getAddress(NEG_RISK_ADAPTER), abi: NEGRISK_ABI, functionName: "redeemPositions", args: [w.conditionId, amounts] }, `赎回(neg-risk) ${w.title.slice(0, 30)}`)
-        .catch((e) => line(`     ${C.dim}(跳过: ${(e?.shortMessage || e?.message || "").slice(0, 60)})${C.x}`));
+      await sendTx(wallet, { address: getAddress(NEG_RISK_ADAPTER), abi: NEGRISK_ABI, functionName: "redeemPositions", args: [w.conditionId, amounts] }, `Redeem (neg-risk) ${w.title.slice(0, 30)}`)
+        .catch((e) => line(`     ${C.dim}(skipped: ${(e?.shortMessage || e?.message || "").slice(0, 60)})${C.x}`));
     }
   }
   const seen = new Set();
@@ -306,8 +306,8 @@ async function redeemWinners(wallet, eoa, winners) {
     if (!w.conditionId || seen.has(w.conditionId)) continue;
     seen.add(w.conditionId);
     for (const col of REDEEM_COLLATERALS) {
-      await sendTx(wallet, { address: CTF, abi: REDEEM_ABI, functionName: "redeemPositions", args: [getAddress(col), ZERO32, w.conditionId, [1n, 2n]] }, `赎回 ${w.title.slice(0, 30)} (${col === PUSD ? "pUSD" : "USDC.e"})`)
-        .catch((e) => line(`     ${C.dim}(跳过: ${(e?.shortMessage || e?.message || "").slice(0, 60)})${C.x}`));
+      await sendTx(wallet, { address: CTF, abi: REDEEM_ABI, functionName: "redeemPositions", args: [getAddress(col), ZERO32, w.conditionId, [1n, 2n]] }, `Redeem ${w.title.slice(0, 30)} (${col === PUSD ? "pUSD" : "USDC.e"})`)
+        .catch((e) => line(`     ${C.dim}(skipped: ${(e?.shortMessage || e?.message || "").slice(0, 60)})${C.x}`));
     }
   }
 }
@@ -315,7 +315,7 @@ async function redeemWinners(wallet, eoa, winners) {
 async function unwrapPusd(wallet, eoa) {
   const bal = await pub.readContract({ address: PUSD, abi: ERC20_ABI, functionName: "balanceOf", args: [eoa] });
   if (bal <= 0n) return 0n;
-  await sendTx(wallet, { address: PUSD, abi: ERC20_ABI, functionName: "approve", args: [getAddress(OFFRAMP), bal] }, "授权 Offramp 花费 pUSD");
+  await sendTx(wallet, { address: PUSD, abi: ERC20_ABI, functionName: "approve", args: [getAddress(OFFRAMP), bal] }, "Approve the Offramp to spend pUSD");
   await sendTx(wallet, { address: getAddress(OFFRAMP), abi: OFFRAMP_ABI, functionName: "unwrap", args: [getAddress(USDC_E), eoa, bal] }, `unwrap pUSD ${fmt(bal)} -> USDC.e`);
   return bal;
 }
@@ -331,18 +331,18 @@ async function quoteUsdceToUsdc(amountIn) {
 // (DEX swap). estRaw is an estimate of the total USDC.e, used only for the
 // live slippage preview. Returns "usdce" | "usdc".
 async function askPayoutToken(estRaw) {
-  line(`\n${C.b}③ 你要最终收到哪种币?${C.x}`);
-  line(`  ${C.grn}1) USDC.e${C.x}     ${C.dim}无滑点、无手续费,直接到账${C.x}`);
-  let slipPct = null, slipTxt = "有微小滑点";
+  line(`\n${C.b}③ Which token do you want to receive?${C.x}`);
+  line(`  ${C.grn}1) USDC.e${C.x}     ${C.dim}no slippage, no fee — sent as is${C.x}`);
+  let slipPct = null, slipTxt = "a tiny slippage";
   if (estRaw > 0n) {
     const q = await quoteUsdceToUsdc(estRaw);
     if (q !== null) {
       slipPct = Math.max(0, (Number(formatUnits(estRaw - q, 6)) / Number(formatUnits(estRaw, 6))) * 100);
-      slipTxt = `滑点+手续费约 ${slipPct.toFixed(3)}%`;
+      slipTxt = `about ${slipPct.toFixed(3)}% slippage + fee`;
     }
   }
-  line(`  ${C.grn}2) USDC(原生)${C.x}  ${C.dim}经 DEX 兑换,${slipTxt}(交易所/钱包兼容性更广)${C.x}`);
-  const pick = (await ask(`输入 1 或 2(直接按 Enter = 1 USDC.e）： `)).trim();
+  line(`  ${C.grn}2) USDC (native)${C.x}  ${C.dim}swapped on a DEX, ${slipTxt} (accepted by more exchanges and wallets)${C.x}`);
+  const pick = (await ask(`Type 1 or 2 (Enter = 1, USDC.e): `)).trim();
   return { token: pick === "2" ? "usdc" : "usdce", slipPct };
 }
 // Phase 4: send the EOA's USDC.e to DEST as the chosen token (swap if "usdc"),
@@ -352,72 +352,72 @@ async function deliver(wallet, eoa, dest, payoutToken) {
   if (usdceBal > 0n) {
     const quoted = payoutToken === "usdc" ? await quoteUsdceToUsdc(usdceBal) : null;
     if (payoutToken === "usdc" && quoted !== null) {
-      const minOut = (quoted * 995n) / 1000n; // 0.5% 容差
+      const minOut = (quoted * 995n) / 1000n; // 0.5% tolerance
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
-      await sendTx(wallet, { address: USDC_E, abi: ERC20_ABI, functionName: "approve", args: [getAddress(SWAP_ROUTER), usdceBal] }, "授权 DEX 花费 USDC.e");
+      await sendTx(wallet, { address: USDC_E, abi: ERC20_ABI, functionName: "approve", args: [getAddress(SWAP_ROUTER), usdceBal] }, "Approve the DEX to spend USDC.e");
       await sendTx(wallet, { address: getAddress(SWAP_ROUTER), abi: SWAP_ABI, functionName: "exactInputSingle",
         args: [{ tokenIn: getAddress(USDC_E), tokenOut: getAddress(USDC), fee: SWAP_FEE, recipient: dest, deadline, amountIn: usdceBal, amountOutMinimum: minOut, sqrtPriceLimitX96: 0n }] },
-        `兑换 USDC.e ${fmt(usdceBal)} -> USDC 并转到 ${dest.slice(0, 8)}…`);
+        `Swap USDC.e ${fmt(usdceBal)} -> USDC and send to ${dest.slice(0, 8)}…`);
     } else {
-      if (payoutToken === "usdc") line(`   ${C.ylw}DEX 暂时无法兑换,改为直接转 USDC.e。${C.x}`);
-      await sendTx(wallet, { address: USDC_E, abi: ERC20_ABI, functionName: "transfer", args: [dest, usdceBal] }, `转出 USDC.e ${fmt(usdceBal)} -> ${dest.slice(0, 8)}…`);
+      if (payoutToken === "usdc") line(`   ${C.ylw}The DEX can't swap right now — sending USDC.e instead.${C.x}`);
+      await sendTx(wallet, { address: USDC_E, abi: ERC20_ABI, functionName: "transfer", args: [dest, usdceBal] }, `Send USDC.e ${fmt(usdceBal)} -> ${dest.slice(0, 8)}…`);
     }
   }
-  // 钱包里若本来就有原生 USDC,一并转出
+  // Any native USDC already on the EOA goes out too
   const usdcBal = await pub.readContract({ address: USDC, abi: ERC20_ABI, functionName: "balanceOf", args: [eoa] });
-  if (usdcBal > 0n) await sendTx(wallet, { address: USDC, abi: ERC20_ABI, functionName: "transfer", args: [dest, usdcBal] }, `转出 USDC ${fmt(usdcBal)} -> ${dest.slice(0, 8)}…`);
+  if (usdcBal > 0n) await sendTx(wallet, { address: USDC, abi: ERC20_ABI, functionName: "transfer", args: [dest, usdcBal] }, `Send USDC ${fmt(usdcBal)} -> ${dest.slice(0, 8)}…`);
 }
 // After rescue: keep using the site (unpause -> normal) or stay paused.
 async function offerUnpause(wallet, dw) {
-  line(`\n${C.b}是否还要继续使用 BOOPOLY 网站?${C.x}`);
-  line(`${C.dim}  • 要继续用  → 把钱包恢复正常状态(unpause),网站才能再正常操作它`);
-  line(`  • 不再使用  → 保持当前(暂停)状态即可,之后想用再跑本工具 unpause${C.x}`);
-  const keepUsing = await ask(`输入 ${C.b}YES${C.x} 继续使用网站（解除暂停），或按 Enter 保持暂停： `);
+  line(`\n${C.b}Will you keep using the BOOPOLY website?${C.x}`);
+  line(`${C.dim}  • Yes → un-pause the wallet so the website can operate it again`);
+  line(`  • No  → leave it paused; run this tool again any time to un-pause${C.x}`);
+  const keepUsing = await ask(`Type ${C.b}YES${C.x} to un-pause and keep using the site, or press Enter to stay paused: `);
   if (keepUsing.toUpperCase() === "YES") {
-    await sendTx(wallet, { address: dw, abi: DW_ABI, functionName: "unpause" }, "解除暂停(unpause),恢复网站正常使用");
-    line(`${C.grn}✅ 钱包已恢复正常,可继续使用 BOOPOLY 网站。${C.x}`);
+    await sendTx(wallet, { address: dw, abi: DW_ABI, functionName: "unpause" }, "Un-pause the wallet (unpause)");
+    line(`${C.grn}✅ The wallet is back to normal — you can keep using BOOPOLY.${C.x}`);
   } else {
-    line(`${C.dim}钱包保持暂停状态。之后想继续使用网站,重跑本工具按提示解除暂停即可。${C.x}`);
+    line(`${C.dim}The wallet stays paused. To use the website again later, run this tool and un-pause.${C.x}`);
   }
 }
 
 // Shares an earlier rescue moved to the EOA before their market settled: once
 // settled they redeem straight from the EOA — no pause, no timelock.
 async function rescueEoaWinners(wallet, eoa, winners) {
-  line(`\n${C.grn}🏆 你 EOA 上有 ${winners.length} 笔已结算的赢单,可以直接赎回。${C.x}`);
+  line(`\n${C.grn}🏆 Your EOA holds ${winners.length} settled winning position(s) — they can be redeemed now.${C.x}`);
   const est = winners.reduce((s, w) => s + w.bal, 0n);
   const { token: payoutToken } = await askPayoutToken(est);
   const payoutName = payoutToken === "usdc" ? "USDC" : "USDC.e";
-  line(`\n${C.b}收款地址${C.x}（建议填你自己的钱包,如 MetaMask）：`);
+  line(`\n${C.b}Payout address${C.x} (your own wallet, e.g. MetaMask):`);
   const dest = await askAddress(process.env.DEST, `   > `);
   for (const w of winners) line(`   ${C.grn}🏆 $${w.value.toFixed(2)}${C.x} ${w.title.slice(0, 40)}`);
-  const conf = await ask(`\n输入 ${C.b}RESCUE${C.x} 确认赎回并转出 ${payoutName} 到 ${dest}，或 q 取消： `);
-  if (conf !== "RESCUE") { line(`${C.dim}已取消,未动任何资金。${C.x}`); return; }
+  const conf = await ask(`\nType ${C.b}RESCUE${C.x} to redeem and send ${payoutName} to ${dest}, or q to cancel: `);
+  if (conf !== "RESCUE") { line(`${C.dim}Cancelled — no funds were moved.${C.x}`); return; }
   await redeemWinners(wallet, eoa, winners);
   await unwrapPusd(wallet, eoa);
   await deliver(wallet, eoa, dest, payoutToken);
-  line(`\n${C.grn}${C.b}🎉 完成!资金已转到 ${dest}${C.x}`);
+  line(`\n${C.grn}${C.b}🎉 Done! Funds sent to ${dest}${C.x}`);
 }
 
 // ── Flow ────────────────────────────────────────────────────────────
 async function main() {
   line(`${C.b}${C.cyn}╔══════════════════════════════════════════════╗`);
-  line(`║          BOOPOLY 资金救援工具 (rescue)         ║`);
+  line(`║             BOOPOLY Rescue Tool              ║`);
   line(`╚══════════════════════════════════════════════╝${C.x}`);
-  line(`${C.dim}本工具在你自己的电脑上运行,直连 Polygon 区块链,把你 deposit`);
-  line(`钱包里的资金提到你指定的地址。不依赖 BOOPOLY / Polymarket / 任何服务器。`);
-  line(`你的私钥只在本机用于签名,绝不显示、保存或上传。${C.x}\n`);
+  line(`${C.dim}This tool runs on your own computer and talks straight to Polygon. It`);
+  line(`moves everything in your deposit wallet to an address you choose — no BOOPOLY, Polymarket or any server needed.`);
+  line(`Your private key is only used on this machine to sign. It is never shown, saved or sent.${C.x}\n`);
 
-  // ① 私钥 —— 唯一必需的输入。其余全部由它推导,完全不需要网站提供任何东西。
-  line(`${C.b}① 你的私钥${C.x}（从 Privy 导出的那把；输入时以 * 显示,不会被记录）`);
+  // ① The private key — the only required input; everything else is derived from it.
+  line(`${C.b}① Your private key${C.x} (the one exported from Privy; typed as *, never recorded)`);
   const account = await askAccount(process.env.PRIVATE_KEY);
   const wallet = createWalletClient({ account, chain: polygon, transport });
 
-  // deposit 钱包地址 = 由私钥地址 CREATE2 确定性推导(新旧两种钱包都会试),不需要网站提供任何东西。
-  line(`\n${C.dim}你的钱包地址 (EOA): ${account.address}${C.x}`);
-  line(`${C.dim}推导并核对你的 deposit 钱包…${C.x}`);
+  // The deposit wallet is a CREATE2 function of the key's address (both wallet types are tried) — nothing comes from a website.
+  line(`\n${C.dim}Your wallet address (EOA): ${account.address}${C.x}`);
+  line(`${C.dim}Finding and verifying your deposit wallet…${C.x}`);
   let candidates = await depositWalletCandidates(account.address);
-  if (process.env.DEPOSIT_WALLET) { try { candidates = [getAddress(process.env.DEPOSIT_WALLET)]; } catch {} } // 高级覆盖（一般用不到）
+  if (process.env.DEPOSIT_WALLET) { try { candidates = [getAddress(process.env.DEPOSIT_WALLET)]; } catch {} } // advanced override (rarely needed)
   let dw = null, wrongOwner = null;
   for (const c of candidates) {
     let owner;
@@ -426,145 +426,145 @@ async function main() {
     wrongOwner = { c, owner };
   }
   if (!dw && wrongOwner) {
-    return fatal(`链上 owner 与你的私钥不符(异常情况)。\n   钱包: ${wrongOwner.c}\n   钱包 owner: ${wrongOwner.owner}\n   你的私钥地址: ${account.address}\n   已中止,未动任何资金。`);
+    return fatal(`The wallet's on-chain owner does not match your key (unexpected).\n   Wallet: ${wrongOwner.c}\n   Owner: ${wrongOwner.owner}\n   Your key's address: ${account.address}\n   Stopped — no funds were moved.`);
   }
   if (!dw) {
-    return fatal(`读不到你的 deposit 钱包:它可能还没在链上建立(从没在网站完成开户),或网络暂时不通。\n   推导地址: ${candidates.join(" / ")}\n   请确认私钥正确,稍后再试。未动任何资金。`);
+    return fatal(`Couldn't read your deposit wallet: it may not exist on-chain yet (sign-up never finished on the website), or the network is unreachable.\n   Derived address: ${candidates.join(" / ")}\n   Check the private key and try again later. No funds were moved.`);
   }
-  line(`${C.b}你的 deposit 钱包: ${dw}${C.x}`);
-  line(`${C.grn}✅ 验证通过:这把私钥拥有这个钱包${C.x}`);
+  line(`${C.b}Your deposit wallet: ${dw}${C.x}`);
+  line(`${C.grn}✅ Verified: this key owns this wallet${C.x}`);
   const eoa = getAddress(account.address);
 
-  // 状态循环（可重复运行、可断点续跑）
+  // State loop (re-runnable; resumes where it left off)
   while (true) {
-    line(`\n${C.dim}查询链上状态…${C.x}`);
+    line(`\n${C.dim}Reading on-chain state…${C.x}`);
     const [{ paused, delay, unlockAt, unlocked }, pol, erc20, ctf, eoaCtf] = await Promise.all([
       readState(dw), pub.getBalance({ address: account.address }), erc20Balances(dw), ctfPositions(dw), ctfPositions(eoa),
     ]);
-    // 上一次救援时还没结算、留在 EOA 的持仓,结算后可直接在 EOA 赎回(不需要暂停/等待)。
+    // Shares an earlier run left on the EOA before settlement redeem straight from the EOA (no pause, no wait).
     const eoaWinners = categorize(eoaCtf).winners;
 
-    line(`\n${C.b}── 你的资产（在 ${dw.slice(0, 8)}…${dw.slice(-4)}）──${C.x}`);
-    if (!erc20.length && !ctf.length) line(`   (空)`);
-    for (const t of erc20) line(`   现金 ${t.name.padEnd(6)} ${C.grn}${fmt(t.bal, t.dec)}${C.x}`);
-    for (const p of ctf) line(`   持仓 ${p.redeemable ? C.grn + "可赎回" : C.dim + "未结算"}${C.x} $${Number(p.value).toFixed(2)}  ${p.outcome} · ${p.title.slice(0, 40)}`);
+    line(`\n${C.b}── Your assets (in ${dw.slice(0, 8)}…${dw.slice(-4)}) ──${C.x}`);
+    if (!erc20.length && !ctf.length) line(`   (empty)`);
+    for (const t of erc20) line(`   Cash     ${t.name.padEnd(6)} ${C.grn}${fmt(t.bal, t.dec)}${C.x}`);
+    for (const p of ctf) line(`   Position ${p.redeemable ? C.grn + "redeemable" : C.dim + "unsettled"}${C.x} $${Number(p.value).toFixed(2)}  ${p.outcome} · ${p.title.slice(0, 40)}`);
     if (eoaCtf.length) {
-      line(`\n${C.b}── 之前提出、留在你 EOA 的持仓 ──${C.x}`);
-      for (const p of eoaCtf) line(`   持仓 ${p.redeemable ? C.grn + "可赎回" : C.dim + "未结算"}${C.x} $${Number(p.value).toFixed(2)}  ${p.outcome} · ${p.title.slice(0, 40)}`);
+      line(`\n${C.b}── Positions an earlier run left on your EOA ──${C.x}`);
+      for (const p of eoaCtf) line(`   Position ${p.redeemable ? C.grn + "redeemable" : C.dim + "unsettled"}${C.x} $${Number(p.value).toFixed(2)}  ${p.outcome} · ${p.title.slice(0, 40)}`);
     }
 
     const gasLow = pol < MIN_GAS;
-    line(`\n   ⛽ Gas（你EOA上的POL）：${formatUnits(pol, 18)} ${gasLow ? C.ylw + "← 偏低,建议充值 ~0.12 POL" + C.x : ""}`);
+    line(`\n   ⛽ Gas (POL on your EOA): ${formatUnits(pol, 18)} ${gasLow ? C.ylw + "← low, top up to ~0.12 POL" + C.x : ""}`);
 
     if (gasLow) {
-      line(`\n${C.ylw}需要先给这个地址充值约 0.12 POL 当手续费：${C.x}\n   ${C.b}${account.address}${C.x}`);
-      const a = await ask(`\n充好后按 Enter 重新检查,或输入 q 退出： `);
+      line(`\n${C.ylw}First send about 0.12 POL to this address for network fees:${C.x}\n   ${C.b}${account.address}${C.x}`);
+      const a = await ask(`\nPress Enter to re-check once it arrives, or q to quit: `);
       if (a.toLowerCase() === "q") return bye(0);
       continue;
     }
 
-    // deposit 钱包已空,但 EOA 上有已结算的赢单 → 直接赎回并转出(不需要 pause)。
+    // Deposit wallet empty but settled winners on the EOA → redeem and send them (no pause needed).
     if (!erc20.length && !ctf.length && eoaWinners.length) {
       await rescueEoaWinners(wallet, eoa, eoaWinners);
-      await pause("\n按 Enter 关闭… ");
+      await pause("\nPress Enter to close… ");
       return bye(0);
     }
 
     if (paused === 0n) {
-      line(`\n${C.b}下一步:启动提领（会先发 pause(),开始 ${(Number(delay) / 3600).toFixed(1)} 小时的安全倒计时）${C.x}`);
-      const a = await ask(`输入 ${C.b}YES${C.x} 确认发送 pause()，或 q 退出： `);
+      line(`\n${C.b}Next: start the withdrawal — this sends pause() and starts a ${(Number(delay) / 3600).toFixed(1)}-hour safety countdown${C.x}`);
+      const a = await ask(`Type ${C.b}YES${C.x} to send pause(), or q to quit: `);
       if (a.toLowerCase() === "q") return bye(0);
-      if (a !== "YES") { line(`${C.dim}未确认,跳过。${C.x}`); continue; }
-      line(`${C.dim}发送 pause()…${C.x}`);
+      if (a !== "YES") { line(`${C.dim}Not confirmed — skipped.${C.x}`); continue; }
+      line(`${C.dim}Sending pause()…${C.x}`);
       const hash = await wallet.writeContract({ address: dw, abi: DW_ABI, functionName: "pause" });
-      line(`   交易：https://polygonscan.com/tx/${hash}`);
+      line(`   Transaction: https://polygonscan.com/tx/${hash}`);
       await pub.waitForTransactionReceipt({ hash });
-      line(`${C.grn}✅ 已暂停。${(Number(delay) / 3600).toFixed(1)} 小时后回来再跑一次本工具即可提领（你可以现在关掉)。${C.x}`);
-      const a2 = await ask(`\n要现在就挂着等吗？输入 wait 原地等待倒计时,或按 Enter 退出稍后再来： `);
+      line(`${C.grn}✅ Paused. Run this tool again in ${(Number(delay) / 3600).toFixed(1)} hour(s) to withdraw (you can close it now).${C.x}`);
+      const a2 = await ask(`\nWait here? Type wait to wait out the countdown, or press Enter to quit and come back later: `);
       if (a2.toLowerCase() !== "wait") return bye(0);
       continue;
     }
 
     if (!unlocked) {
       const mins = Math.max(0, Math.ceil(Number(unlockAt - BigInt(Math.floor(Date.now() / 1000))) / 60));
-      line(`\n${C.ylw}🔒 已暂停,提领将在约 ${mins} 分钟后解锁（${new Date(Number(unlockAt) * 1000).toLocaleString()})。${C.x}`);
-      const a = await ask(`输入 wait 原地等待并自动继续,或按 Enter 退出稍后再来： `);
+      line(`\n${C.ylw}🔒 Paused — withdrawal unlocks in about ${mins} minute(s) (${new Date(Number(unlockAt) * 1000).toLocaleString()}).${C.x}`);
+      const a = await ask(`Type wait to wait and continue automatically, or press Enter to quit and come back later: `);
       if (a.toLowerCase() !== "wait") return bye(0);
       while (BigInt(Math.floor(Date.now() / 1000)) <= unlockAt) {
         const l = Math.max(0, Math.ceil(Number(unlockAt - BigInt(Math.floor(Date.now() / 1000))) / 60));
-        process.stdout.write(`\r   ${C.dim}倒计时… 约 ${l} 分钟${C.x}    `);
+        process.stdout.write(`\r   ${C.dim}Countdown… about ${l} minute(s)${C.x}    `);
         await sleep(30_000);
       }
-      line(`\n${C.grn}✅ 时间锁已过,可以提领了。${C.x}`);
+      line(`\n${C.grn}✅ The timelock has passed — you can withdraw now.${C.x}`);
       continue;
     }
 
-    // 解锁 → 救援（Option A:全部在你 EOA 上做,最终把干净的 USDC.e 转到你指定地址)
-    line(`\n${C.grn}🔓 时间锁已过。${C.x}`);
+    // Unlocked → rescue (everything runs from your EOA; clean USDC.e/USDC ends up at your address)
+    line(`\n${C.grn}🔓 The timelock has passed.${C.x}`);
     const { winners: dwWinners, unresolved, worthless } = categorize(ctf);
-    const winners = [...dwWinners, ...eoaWinners]; // EOA 上已结算的旧持仓一并赎回
+    const winners = [...dwWinners, ...eoaWinners]; // settled leftovers on the EOA are redeemed too
 
-    // deposit 钱包已空(可能上一轮已提领完)→ 直接问是否解除暂停,不必再走提领。
+    // Deposit wallet empty (an earlier run already withdrew) → only offer to un-pause.
     if (erc20.length === 0 && dwWinners.length === 0 && unresolved.length === 0) {
-      line(`${C.dim}deposit 钱包里没有可提领的资产。${C.x}`);
+      line(`${C.dim}There is nothing left to withdraw in the deposit wallet.${C.x}`);
       await offerUnpause(wallet, dw);
-      await pause("\n按 Enter 关闭… ");
+      await pause("\nPress Enter to close… ");
       return bye(0);
     }
 
-    // ③ 选择最终收到的币种 (USDC.e / USDC)
+    // ③ Choose the payout token (USDC.e / USDC)
     const estRaw = erc20.reduce((s, t) => s + t.bal, 0n) + winners.reduce((s, w) => s + w.bal, 0n);
     const { token: payoutToken, slipPct } = await askPayoutToken(estRaw);
     const isUsdc = payoutToken === "usdc";
     const payoutName = isUsdc ? "USDC" : "USDC.e";
 
-    // ④ 核对所选币种合约地址 + 填收款地址(提示随选择变)
-    line(`\n${C.b}请核对 ${isUsdc ? "USDC（Polygon 链）" : "USDC.e"} 合约地址,确保能正确提领并到帐:${C.x}`);
+    // ④ Show the chosen token's contract + ask for the payout address
+    line(`\n${C.b}Check the ${isUsdc ? "USDC (Polygon)" : "USDC.e"} contract address so the funds arrive where you expect:${C.x}`);
     line(`${C.dim}  ${isUsdc ? USDC : USDC_E}${C.x}`);
     const destHint = isUsdc
-      ? `经 DEX 兑换,滑点+手续费约 ${slipPct !== null ? slipPct.toFixed(3) + "%" : "极小"}`
-      : `建议填你自己的钱包,如 MetaMask;交易所地址可能不支持 USDC.e`;
-    line(`\n${C.b}④ 收款地址${C.x}（${destHint}）：`);
+      ? `swapped on a DEX, about ${slipPct !== null ? slipPct.toFixed(3) + "%" : "a tiny"} slippage + fee`
+      : `use your own wallet, e.g. MetaMask; an exchange address may not accept USDC.e`;
+    line(`\n${C.b}④ Payout address${C.x} (${destHint}):`);
     const dest = await askAddress(process.env.DEST, `   > `);
 
-    line(`\n${C.b}计划:${C.x}`);
-    for (const t of erc20) line(`   现金 ${t.name} ${fmt(t.bal, t.dec)}${t.name === "pUSD" ? " → 换成 USDC.e" : ""}`);
-    for (const w of winners) line(`   ${C.grn}🏆 赢 $${w.value.toFixed(2)}${C.x} ${w.title.slice(0, 38)} → 赎回成 USDC.e`);
-    for (const u of unresolved) line(`   ${C.ylw}⏳ 未结算 $${u.value.toFixed(2)}${C.x} ${u.title.slice(0, 38)} → 暂时无法提领,需等待结算后才能提领`);
-    if (worthless.length) line(`   ${C.dim}(忽略 ${worthless.length} 笔 $0 废份额)${C.x}`);
-    line(`   ${C.b}→ 全部换成 ${payoutName} 转到: ${dest}${C.x}`);
+    line(`\n${C.b}Plan:${C.x}`);
+    for (const t of erc20) line(`   Cash ${t.name} ${fmt(t.bal, t.dec)}${t.name === "pUSD" ? " → converted to USDC.e" : ""}`);
+    for (const w of winners) line(`   ${C.grn}🏆 Won $${w.value.toFixed(2)}${C.x} ${w.title.slice(0, 38)} → redeemed to USDC.e`);
+    for (const u of unresolved) line(`   ${C.ylw}⏳ Unsettled $${u.value.toFixed(2)}${C.x} ${u.title.slice(0, 38)} → can't be redeemed until the market settles`);
+    if (worthless.length) line(`   ${C.dim}(ignoring ${worthless.length} worthless $0 position(s))${C.x}`);
+    line(`   ${C.b}→ everything as ${payoutName} to: ${dest}${C.x}`);
 
-    const conf = await ask(`\n输入 ${C.b}RESCUE${C.x} 确认开始（约 8~12 笔交易，备好 ~0.12 POL），或 q 取消： `);
-    if (conf !== "RESCUE") { line(`${C.dim}已取消,未动任何资金。${C.x}`); return bye(0); }
+    const conf = await ask(`\nType ${C.b}RESCUE${C.x} to start (about 8–12 transactions, keep ~0.12 POL), or q to cancel: `);
+    if (conf !== "RESCUE") { line(`${C.dim}Cancelled — no funds were moved.${C.x}`); return bye(0); }
 
-    // [1/4] 逃生提领 — deposit 钱包 → 你的 EOA
-    line(`\n${C.b}[1/4] 从 deposit 钱包提出 → 你的 EOA${C.x}`);
-    for (const t of erc20) await sendTx(wallet, { address: dw, abi: DW_ABI, functionName: "withdrawERC20", args: [getAddress(t.addr), eoa, t.bal] }, `提出 ${t.name} ${fmt(t.bal, t.dec)}`);
+    // [1/4] Escape-hatch withdrawal — deposit wallet → your EOA
+    line(`\n${C.b}[1/4] Withdraw from the deposit wallet → your EOA${C.x}`);
+    for (const t of erc20) await sendTx(wallet, { address: dw, abi: DW_ABI, functionName: "withdrawERC20", args: [getAddress(t.addr), eoa, t.bal] }, `Withdraw ${t.name} ${fmt(t.bal, t.dec)}`);
     const moveShares = [...dwWinners, ...unresolved];
-    if (moveShares.length) await sendTx(wallet, { address: dw, abi: DW_ABI, functionName: "withdrawERC1155", args: [getAddress(CTF), eoa, moveShares.map((p) => p.id), moveShares.map((p) => p.bal)] }, `提出 ${moveShares.length} 笔持仓份额`);
+    if (moveShares.length) await sendTx(wallet, { address: dw, abi: DW_ABI, functionName: "withdrawERC1155", args: [getAddress(CTF), eoa, moveShares.map((p) => p.id), moveShares.map((p) => p.bal)] }, `Withdraw ${moveShares.length} position(s)`);
 
-    // [2/4] 赎回赢的持仓 → pUSD/USDC.e
-    line(`\n${C.b}[2/4] 赎回赢的持仓${C.x}`);
-    if (winners.length) await redeemWinners(wallet, eoa, winners); else line(`   (无)`);
+    // [2/4] Redeem winning positions → pUSD/USDC.e
+    line(`\n${C.b}[2/4] Redeem winning positions${C.x}`);
+    if (winners.length) await redeemWinners(wallet, eoa, winners); else line(`   (none)`);
 
     // [3/4] pUSD → USDC.e
-    line(`\n${C.b}[3/4] 把 pUSD 换成 USDC.e${C.x}`);
-    if ((await unwrapPusd(wallet, eoa)) === 0n) line(`   (无 pUSD)`);
+    line(`\n${C.b}[3/4] Convert pUSD to USDC.e${C.x}`);
+    if ((await unwrapPusd(wallet, eoa)) === 0n) line(`   (no pUSD)`);
 
-    // [4/4] 按你选的币种转到收款地址
-    line(`\n${C.b}[4/4] 把 ${payoutName} 转到收款地址${C.x}`);
+    // [4/4] Send the chosen token to the payout address
+    line(`\n${C.b}[4/4] Send ${payoutName} to the payout address${C.x}`);
     await deliver(wallet, eoa, dest, payoutToken);
 
-    line(`\n${C.grn}${C.b}🎉 完成!资金已转到 ${dest}${C.x}`);
+    line(`\n${C.grn}${C.b}🎉 Done! Funds sent to ${dest}${C.x}`);
     if (unresolved.length) {
-      line(`${C.ylw}⏳ ${unresolved.length} 笔持仓暂时无法提领,需等待结算后才能提领(份额留在你的 EOA ${eoa}):${C.x}`);
+      line(`${C.ylw}⏳ ${unresolved.length} position(s) can't be redeemed until their market settles (the shares stay on your EOA ${eoa}). Run this tool again after settlement:${C.x}`);
       for (const u of unresolved) line(`   ${C.dim}· ${u.title.slice(0, 46)}${C.x}`);
     }
 
-    // 提领后:问是否还要继续使用网站 → 要则 unpause(恢复正常);不要则保持暂停。
+    // After the rescue: un-pause to keep using the site, or stay paused.
     await offerUnpause(wallet, dw);
 
-    await pause("\n按 Enter 关闭… ");
+    await pause("\nPress Enter to close… ");
     return bye(0);
   }
 }
