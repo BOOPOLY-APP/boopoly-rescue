@@ -1,0 +1,22 @@
+{
+  "name": "boopoly-rescue",
+  "version": "1.0.0",
+  "description": "Self-custody escape hatch for a Polymarket V2 deposit wallet — guided, double-click rescue that sweeps all funds to any address, directly on Polygon, with zero dependence on BOOPOLY / Polymarket / any relayer.",
+  "type": "module",
+  "private": true,
+  "bin": { "boopoly-rescue": "rescue.mjs" },
+  "scripts": {
+    "start": "node rescue.mjs",
+    "build:bundle": "esbuild rescue.mjs --bundle --platform=node --format=cjs --target=node18 --outfile=dist/rescue.cjs",
+    "build:exe": "pkg dist/rescue.cjs --targets node18-win-x64 --output dist/BOOPOLY-Rescue.exe",
+    "build": "npm run build:bundle && npm run build:exe"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0",
+    "@yao-pkg/pkg": "^5.16.1"
+  },
+  "engines": { "node": ">=18" }
+}
